@@ -4,10 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>DriveTrack</title>
+
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #000;
@@ -19,7 +22,8 @@
 
     #map {
       position: absolute;
-      top: 0; left: 0; width: 100%; height: 100%;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
       z-index: 1;
     }
 
@@ -54,39 +58,22 @@
       text-align: center;
       z-index: 1000;
       border: 1px solid rgba(0, 240, 255, 0.3);
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
     }
 
     .speed-big {
-      font-size: 5.8rem;
+      font-size: 5rem;
       font-weight: 700;
-      line-height: 1;
       color: #00f0ff;
-      transition: transform 0.2s ease;
     }
 
-    .unit { font-size: 1.1rem; color: #ccc; }
+    .unit { font-size: 1rem; color: #ccc; }
 
     .small-stats {
       display: flex;
       justify-content: center;
       gap: 30px;
       margin-top: 12px;
-      font-size: 1.1rem;
-    }
-
-    .pin-label {
-      position: absolute;
-      background: rgba(0, 0, 0, 0.9);
-      color: white;
-      padding: 8px 18px;
-      border-radius: 30px;
-      font-size: 15.5px;
-      white-space: nowrap;
-      z-index: 1000;
-      pointer-events: none;
-      box-shadow: 0 0 25px rgba(0, 240, 255, 0.6);
-      border: 1px solid #00f0ff;
+      font-size: 1rem;
     }
 
     .controls {
@@ -102,17 +89,12 @@
     .control-btn {
       width: 56px;
       height: 56px;
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0,0,0,0.8);
       border: 1px solid rgba(255,255,255,0.25);
       border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 26px;
       color: white;
+      font-size: 24px;
       cursor: pointer;
-      backdrop-filter: blur(10px);
-      user-select: none;
     }
 
     .start-btn {
@@ -127,158 +109,142 @@
       border-radius: 50px;
       font-size: 18px;
       font-weight: bold;
-      box-shadow: 0 0 30px rgba(0, 240, 255, 0.6);
+      border: none;
     }
   </style>
 </head>
+
 <body>
 
-  <div id="map"></div>
+<div id="map"></div>
 
-  <div class="top-bar">
-    <div class="logo"><span>▶</span> DriveTrack</div>
-    <div class="status" id="time">10:42</div>
+<div class="top-bar">
+  <div class="logo"><span>▶</span> DriveTrack</div>
+  <div class="status" id="time"></div>
+</div>
+
+<div class="overlay-bottom">
+  <div class="speed-big" id="speed">0</div>
+  <div class="unit">MPH</div>
+
+  <div class="small-stats">
+    <div><span id="avg-speed">0</span> AVG</div>
+    <div><span id="distance">0.0</span> miles</div>
   </div>
+</div>
 
-  <div class="overlay-bottom">
-    <div class="speed-big" id="speed">0</div>
-    <div class="unit">MPH</div>
-    
-    <div class="small-stats">
-      <div><span id="avg-speed">0</span> <small>AVG</small></div>
-      <div><span id="distance">0.0</span> <small>miles</small></div>
-    </div>
-  </div>
+<div class="controls">
+  <div class="control-btn" onclick="map.zoomIn()">+</div>
+  <div class="control-btn" onclick="map.zoomOut()">−</div>
+  <div class="control-btn" onclick="centerMap()">⟲</div>
+</div>
 
-  <div id="pin-label" class="pin-label" style="display: none;">
-    Momentous Media
-  </div>
+<button id="startBtn" class="start-btn">Start Tracking</button>
 
-  <div class="controls">
-    <div class="control-btn" onclick="map.zoomIn()">+</div>
-    <div class="control-btn" onclick="map.zoomOut()">−</div>
-    <div class="control-btn" onclick="centerMap()">⟲</div>
-  </div>
+<script>
+let map, marker;
+let lastPosition = null;
+let totalDistance = 0;
+let speeds = [];
+let watchId = null;
 
-  <button id="startBtn" class="start-btn">Start Live Tracking</button>
+const NOISE_THRESHOLD = 0.008; // ~40 meters (filters GPS drift)
 
-  <script>
-    let map, userMarker, lastPosition = null, totalDistance = 0, speeds = [];
-    let watchId = null;
+function initMap() {
+  map = L.map('map', { zoomControl: false }).setView([51.7520, -1.2577], 15);
 
-    const startBtn = document.getElementById('startBtn');
+  L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19 }
+  ).addTo(map);
+}
 
-    function initMap() {
-      map = L.map('map', {
-        zoomControl: false,
-        attributionControl: false,
-        dragging: true,
-        touchZoom: true,
-        doubleClickZoom: true,
-        scrollWheelZoom: false
-      }).setView([37.7749, -122.4194], 15);
+function startTracking() {
+  document.getElementById("startBtn").style.display = "none";
 
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        maxZoom: 19
-      }).addTo(map);
+  watchId = navigator.geolocation.watchPosition(
+    updatePosition,
+    error => console.log(error),
+    {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 5000
     }
+  );
+}
 
-    function startTracking() {
-      if (watchId) return;
+function updatePosition(pos) {
+  const { latitude, longitude, speed } = pos.coords;
 
-      startBtn.style.display = 'none';
+  let mph = speed ? speed * 2.23694 : 0;
 
-      if (navigator.geolocation) {
-        watchId = navigator.geolocation.watchPosition(onLocationUpdate, onError, {
-          enableHighAccuracy: true,
-          maximumAge: 0,
-          timeout: 5000
-        });
-      } else {
-        alert("Geolocation is not supported by your browser.");
-      }
+  // Smooth speed
+  speeds.push(mph);
+  if (speeds.length > 20) speeds.shift();
+  let avgSpeed = speeds.reduce((a,b)=>a+b,0)/speeds.length;
+
+  document.getElementById("speed").textContent = Math.round(mph);
+  document.getElementById("avg-speed").textContent = Math.round(avgSpeed);
+
+  // Distance calculation with noise filter
+  if (lastPosition) {
+    const dist = getDistance(
+      lastPosition.lat,
+      lastPosition.lng,
+      latitude,
+      longitude
+    );
+
+    // 🚫 FILTER: ignore GPS jitter when stationary
+    if (dist > NOISE_THRESHOLD && mph > 1) {
+      totalDistance += dist;
     }
+  }
 
-    function onLocationUpdate(position) {
-      const { latitude, longitude, speed } = position.coords;
-      const mph = speed ? Math.round(speed * 2.23694) : 0;
+  document.getElementById("distance").textContent = totalDistance.toFixed(2);
 
-      // Update speed with animation
-      const speedEl = document.getElementById('speed');
-      speedEl.textContent = mph;
-      speedEl.style.transform = 'scale(1.1)';
-      setTimeout(() => speedEl.style.transform = 'scale(1)', 180);
+  lastPosition = { lat: latitude, lng: longitude };
 
-      // Average speed
-      speeds.push(mph);
-      if (speeds.length > 25) speeds.shift();
-      const avg = Math.round(speeds.reduce((a, b) => a + b, 0) / speeds.length) || 0;
-      document.getElementById('avg-speed').textContent = avg;
+  // Marker
+  if (!marker) {
+    marker = L.marker([latitude, longitude]).addTo(map);
+    map.setView([latitude, longitude], 17);
+  } else {
+    marker.setLatLng([latitude, longitude]);
+  }
+}
 
-      // Distance
-      if (lastPosition) {
-        const dist = getDistance(lastPosition.lat, lastPosition.lng, latitude, longitude);
-        totalDistance += dist;
-        document.getElementById('distance').textContent = totalDistance.toFixed(1);
-      }
+function getDistance(lat1, lon1, lat2, lon2) {
+  const R = 3958.8;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
 
-      lastPosition = { lat: latitude, lng: longitude };
+  const a =
+    Math.sin(dLat/2)**2 +
+    Math.cos(lat1*Math.PI/180) *
+    Math.cos(lat2*Math.PI/180) *
+    Math.sin(dLon/2)**2;
 
-      // Create/Update marker
-      if (!userMarker) {
-        const iconHtml = `<div style="width:52px;height:52px;background:radial-gradient(circle,#00f0ff 25%,#0088ff 70%,transparent 85%);border-radius:50%;border:4px solid white;box-shadow:0 0 45px #00f0ff;animation:pulse 2s infinite;"></div>`;
-        
-        userMarker = L.marker([latitude, longitude], {
-          icon: L.divIcon({ html: iconHtml, iconSize: [52, 52], iconAnchor: [26, 26] })
-        }).addTo(map);
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
 
-        document.getElementById('pin-label').style.display = 'block';
-        map.flyTo([latitude, longitude], 17, { duration: 1.2 });
-      } else {
-        userMarker.setLatLng([latitude, longitude]);
-      }
+function centerMap() {
+  if (lastPosition) {
+    map.setView([lastPosition.lat, lastPosition.lng], 17);
+  }
+}
 
-      updateLabelPosition(latitude, longitude);
-    }
+function updateClock() {
+  document.getElementById("time").textContent =
+    new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+}
 
-    function updateLabelPosition(lat, lng) {
-      const label = document.getElementById('pin-label');
-      const point = map.latLngToContainerPoint([lat, lng]);
-      label.style.left = `${point.x + 45}px`;
-      label.style.top = `${point.y - 40}px`;
-    }
+document.getElementById("startBtn").addEventListener("click", startTracking);
 
-    function getDistance(lat1, lon1, lat2, lon2) {
-      const R = 3958.8;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2)**2;
-      return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
+initMap();
+updateClock();
+setInterval(updateClock, 1000);
+</script>
 
-    function onError(err) {
-      console.error(err);
-      alert("Please enable location/GPS in your browser settings.");
-    }
-
-    function centerMap() {
-      if (lastPosition) map.flyTo([lastPosition.lat, lastPosition.lng], 17);
-    }
-
-    function updateClock() {
-      const now = new Date();
-      document.getElementById('time').textContent = now.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12:false});
-    }
-
-    // Initialize
-    window.onload = () => {
-      initMap();
-      updateClock();
-      setInterval(updateClock, 20000);
-
-      // Auto-start after user taps start button
-      startBtn.addEventListener('click', startTracking);
-    };
-  </script>
 </body>
 </html>
