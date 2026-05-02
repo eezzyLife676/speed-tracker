@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Speed Tracker</title>
+  <style>
+    body {
+      font-family: Arial;
+      text-align: center;
+      margin-top: 50px;
+    }
+    h1 {
+      font-size: 2.5em;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Speed: <span id="speed">0</span> mph</h1>
+<h1>Distance: <span id="distance">0</span> miles</h1>
+
+<script>
+let lastPosition = null;
+let totalDistance = 0;
+
+navigator.geolocation.watchPosition(position => {
+  const { latitude, longitude, speed } = position.coords;
+
+  let mph = speed ? speed * 2.237 : 0;
+
+  if (lastPosition) {
+    const distance = getDistance(
+      lastPosition.latitude,
+      lastPosition.longitude,
+      latitude,
+      longitude
+    );
+    totalDistance += distance;
+  }
+
+  lastPosition = { latitude, longitude };
+
+  document.getElementById("speed").textContent = mph.toFixed(1);
+  document.getElementById("distance").textContent = totalDistance.toFixed(2);
+});
+
+function getDistance(lat1, lon1, lat2, lon2) {
+  const R = 3958.8;
+  const toRad = x => x * Math.PI / 180;
+
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) *
+    Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) ** 2;
+
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+</script>
+
+</body>
+</html>
