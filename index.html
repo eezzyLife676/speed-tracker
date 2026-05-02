@@ -1,64 +1,284 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Speed Tracker</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>DriveTrack</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: Arial;
-      text-align: center;
-      margin-top: 50px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #000;
+      color: white;
+      overflow: hidden;
+      height: 100vh;
+      touch-action: none;
     }
-    h1 {
-      font-size: 2.5em;
+
+    #map {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      z-index: 1;
+    }
+
+    .top-bar {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 55px;
+      background: rgba(0, 0, 0, 0.9);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      z-index: 1000;
+      backdrop-filter: blur(12px);
+    }
+
+    .logo { font-size: 22px; font-weight: bold; }
+    .logo span { color: #00f0ff; }
+
+    .status { margin-left: auto; font-size: 16px; }
+
+    .overlay-bottom {
+      position: absolute;
+      bottom: 25px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10, 10, 15, 0.95);
+      backdrop-filter: blur(20px);
+      border-radius: 28px;
+      padding: 20px 40px;
+      width: 92%;
+      max-width: 380px;
+      text-align: center;
+      z-index: 1000;
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
+    }
+
+    .speed-big {
+      font-size: 5.8rem;
+      font-weight: 700;
+      line-height: 1;
+      color: #00f0ff;
+      transition: transform 0.2s ease;
+    }
+
+    .unit { font-size: 1.1rem; color: #ccc; }
+
+    .small-stats {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      margin-top: 12px;
+      font-size: 1.1rem;
+    }
+
+    .pin-label {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      padding: 8px 18px;
+      border-radius: 30px;
+      font-size: 15.5px;
+      white-space: nowrap;
+      z-index: 1000;
+      pointer-events: none;
+      box-shadow: 0 0 25px rgba(0, 240, 255, 0.6);
+      border: 1px solid #00f0ff;
+    }
+
+    .controls {
+      position: absolute;
+      right: 15px;
+      top: 70px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .control-btn {
+      width: 56px;
+      height: 56px;
+      background: rgba(0, 0, 0, 0.8);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      color: white;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      user-select: none;
+    }
+
+    .start-btn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 2000;
+      background: #00f0ff;
+      color: black;
+      padding: 16px 32px;
+      border-radius: 50px;
+      font-size: 18px;
+      font-weight: bold;
+      box-shadow: 0 0 30px rgba(0, 240, 255, 0.6);
     }
   </style>
 </head>
 <body>
 
-<h1>Speed: <span id="speed">0</span> mph</h1>
-<h1>Distance: <span id="distance">0</span> miles</h1>
+  <div id="map"></div>
 
-<script>
-let lastPosition = null;
-let totalDistance = 0;
+  <div class="top-bar">
+    <div class="logo"><span>▶</span> DriveTrack</div>
+    <div class="status" id="time">10:42</div>
+  </div>
 
-navigator.geolocation.watchPosition(position => {
-  const { latitude, longitude, speed } = position.coords;
+  <div class="overlay-bottom">
+    <div class="speed-big" id="speed">0</div>
+    <div class="unit">MPH</div>
+    
+    <div class="small-stats">
+      <div><span id="avg-speed">0</span> <small>AVG</small></div>
+      <div><span id="distance">0.0</span> <small>miles</small></div>
+    </div>
+  </div>
 
-  let mph = speed ? speed * 2.237 : 0;
+  <div id="pin-label" class="pin-label" style="display: none;">
+    Momentous Media
+  </div>
 
-  if (lastPosition) {
-    const distance = getDistance(
-      lastPosition.latitude,
-      lastPosition.longitude,
-      latitude,
-      longitude
-    );
-    totalDistance += distance;
-  }
+  <div class="controls">
+    <div class="control-btn" onclick="map.zoomIn()">+</div>
+    <div class="control-btn" onclick="map.zoomOut()">−</div>
+    <div class="control-btn" onclick="centerMap()">⟲</div>
+  </div>
 
-  lastPosition = { latitude, longitude };
+  <button id="startBtn" class="start-btn">Start Live Tracking</button>
 
-  document.getElementById("speed").textContent = mph.toFixed(1);
-  document.getElementById("distance").textContent = totalDistance.toFixed(2);
-});
+  <script>
+    let map, userMarker, lastPosition = null, totalDistance = 0, speeds = [];
+    let watchId = null;
 
-function getDistance(lat1, lon1, lat2, lon2) {
-  const R = 3958.8;
-  const toRad = x => x * Math.PI / 180;
+    const startBtn = document.getElementById('startBtn');
 
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
+    function initMap() {
+      map = L.map('map', {
+        zoomControl: false,
+        attributionControl: false,
+        dragging: true,
+        touchZoom: true,
+        doubleClickZoom: true,
+        scrollWheelZoom: false
+      }).setView([37.7749, -122.4194], 15);
 
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) *
-    Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) ** 2;
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19
+      }).addTo(map);
+    }
 
-  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-</script>
+    function startTracking() {
+      if (watchId) return;
 
+      startBtn.style.display = 'none';
+
+      if (navigator.geolocation) {
+        watchId = navigator.geolocation.watchPosition(onLocationUpdate, onError, {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 5000
+        });
+      } else {
+        alert("Geolocation is not supported by your browser.");
+      }
+    }
+
+    function onLocationUpdate(position) {
+      const { latitude, longitude, speed } = position.coords;
+      const mph = speed ? Math.round(speed * 2.23694) : 0;
+
+      // Update speed with animation
+      const speedEl = document.getElementById('speed');
+      speedEl.textContent = mph;
+      speedEl.style.transform = 'scale(1.1)';
+      setTimeout(() => speedEl.style.transform = 'scale(1)', 180);
+
+      // Average speed
+      speeds.push(mph);
+      if (speeds.length > 25) speeds.shift();
+      const avg = Math.round(speeds.reduce((a, b) => a + b, 0) / speeds.length) || 0;
+      document.getElementById('avg-speed').textContent = avg;
+
+      // Distance
+      if (lastPosition) {
+        const dist = getDistance(lastPosition.lat, lastPosition.lng, latitude, longitude);
+        totalDistance += dist;
+        document.getElementById('distance').textContent = totalDistance.toFixed(1);
+      }
+
+      lastPosition = { lat: latitude, lng: longitude };
+
+      // Create/Update marker
+      if (!userMarker) {
+        const iconHtml = `<div style="width:52px;height:52px;background:radial-gradient(circle,#00f0ff 25%,#0088ff 70%,transparent 85%);border-radius:50%;border:4px solid white;box-shadow:0 0 45px #00f0ff;animation:pulse 2s infinite;"></div>`;
+        
+        userMarker = L.marker([latitude, longitude], {
+          icon: L.divIcon({ html: iconHtml, iconSize: [52, 52], iconAnchor: [26, 26] })
+        }).addTo(map);
+
+        document.getElementById('pin-label').style.display = 'block';
+        map.flyTo([latitude, longitude], 17, { duration: 1.2 });
+      } else {
+        userMarker.setLatLng([latitude, longitude]);
+      }
+
+      updateLabelPosition(latitude, longitude);
+    }
+
+    function updateLabelPosition(lat, lng) {
+      const label = document.getElementById('pin-label');
+      const point = map.latLngToContainerPoint([lat, lng]);
+      label.style.left = `${point.x + 45}px`;
+      label.style.top = `${point.y - 40}px`;
+    }
+
+    function getDistance(lat1, lon1, lat2, lon2) {
+      const R = 3958.8;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2)**2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2)**2;
+      return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function onError(err) {
+      console.error(err);
+      alert("Please enable location/GPS in your browser settings.");
+    }
+
+    function centerMap() {
+      if (lastPosition) map.flyTo([lastPosition.lat, lastPosition.lng], 17);
+    }
+
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('time').textContent = now.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12:false});
+    }
+
+    // Initialize
+    window.onload = () => {
+      initMap();
+      updateClock();
+      setInterval(updateClock, 20000);
+
+      // Auto-start after user taps start button
+      startBtn.addEventListener('click', startTracking);
+    };
+  </script>
 </body>
 </html>
