@@ -1,202 +1,174 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>DriveTrack</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>DriveTrack</title>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #000;
-      color: white;
-      overflow: hidden;
-      height: 100vh;
-      touch-action: none;
-    }
+body {
+  font-family: Arial, sans-serif;
+  background:#000;
+  color:#fff;
+  overflow:hidden;
+}
 
-    #map {
-      position: absolute;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      z-index: 1;
-    }
+#map {
+  position:absolute;
+  width:100%;
+  height:100%;
+}
 
-    .top-bar {
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 55px;
-      background: rgba(0, 0, 0, 0.9);
-      display: flex;
-      align-items: center;
-      padding: 0 20px;
-      z-index: 1000;
-      backdrop-filter: blur(12px);
-    }
+/* TOP STATS */
+.top {
+  position:absolute;
+  top:10px;
+  left:50%;
+  transform:translateX(-50%);
+  background:rgba(0,0,0,0.7);
+  padding:10px 20px;
+  border-radius:20px;
+  display:flex;
+  gap:20px;
+  z-index:1000;
+  font-size:14px;
+}
 
-    .logo { font-size: 22px; font-weight: bold; }
-    .logo span { color: #00f0ff; }
+/* MENU BUTTON */
+#menuBtn {
+  position:absolute;
+  bottom:20px;
+  left:20px;
+  z-index:2000;
+  width:55px;
+  height:55px;
+  border-radius:12px;
+  border:none;
+  background:rgba(0,0,0,0.8);
+  color:white;
+  font-size:24px;
+}
 
-    .status { margin-left: auto; font-size: 16px; }
+/* MENU PANEL */
+#menu {
+  position:absolute;
+  bottom:90px;
+  left:20px;
+  background:#111;
+  padding:15px;
+  border-radius:15px;
+  display:none;
+  z-index:2000;
+}
 
-    .overlay-bottom {
-      position: absolute;
-      bottom: 25px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(10, 10, 15, 0.95);
-      backdrop-filter: blur(20px);
-      border-radius: 28px;
-      padding: 20px 40px;
-      width: 92%;
-      max-width: 380px;
-      text-align: center;
-      z-index: 1000;
-      border: 1px solid rgba(0, 240, 255, 0.3);
-    }
+#menu button {
+  display:block;
+  margin:5px 0;
+  padding:10px;
+  width:120px;
+  border:none;
+  border-radius:8px;
+}
 
-    .speed-big {
-      font-size: 5rem;
-      font-weight: 700;
-      color: #00f0ff;
-    }
-
-    .unit { font-size: 1rem; color: #ccc; }
-
-    .small-stats {
-      display: flex;
-      justify-content: center;
-      gap: 30px;
-      margin-top: 12px;
-      font-size: 1rem;
-    }
-
-    .controls {
-      position: absolute;
-      right: 15px;
-      top: 70px;
-      z-index: 1000;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .control-btn {
-      width: 56px;
-      height: 56px;
-      background: rgba(0,0,0,0.8);
-      border: 1px solid rgba(255,255,255,0.25);
-      border-radius: 50%;
-      color: white;
-      font-size: 24px;
-      cursor: pointer;
-    }
-
-    .start-btn {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 2000;
-      background: #00f0ff;
-      color: black;
-      padding: 16px 32px;
-      border-radius: 50px;
-      font-size: 18px;
-      font-weight: bold;
-      border: none;
-    }
-  </style>
+/* BIG SPEED */
+.speed-big {
+  position:absolute;
+  bottom:20px;
+  right:20px;
+  font-size:60px;
+  color:#00f0ff;
+  z-index:1000;
+}
+</style>
 </head>
 
 <body>
 
 <div id="map"></div>
 
-<div class="top-bar">
-  <div class="logo"><span>▶</span> DriveTrack</div>
-  <div class="status" id="time"></div>
+<!-- TOP STATS -->
+<div class="top">
+  <div>MPH: <span id="speed">0</span></div>
+  <div>Miles: <span id="distance">0</span></div>
+  <div>FS: <span id="fs">0</span></div>
 </div>
 
-<div class="overlay-bottom">
-  <div class="speed-big" id="speed">0</div>
-  <div class="unit">MPH</div>
+<div class="speed-big" id="speedBig">0</div>
 
-  <div class="small-stats">
-    <div><span id="avg-speed">0</span> AVG</div>
-    <div><span id="distance">0.0</span> miles</div>
-  </div>
+<!-- MENU BUTTON -->
+<button id="menuBtn">[</button>
+
+<!-- MENU -->
+<div id="menu">
+  <button onclick="startTrack()">Start</button>
+  <button onclick="stopTrack()">Stop</button>
+  <button onclick="saveTrack()">Save</button>
+  <button onclick="loadTrack()">Load</button>
 </div>
-
-<div class="controls">
-  <div class="control-btn" onclick="map.zoomIn()">+</div>
-  <div class="control-btn" onclick="map.zoomOut()">−</div>
-  <div class="control-btn" onclick="centerMap()">⟲</div>
-</div>
-
-<button id="startBtn" class="start-btn">Start Tracking</button>
 
 <script>
-let map, marker;
+let map = L.map('map').setView([51.5, -0.1], 15);
+
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom:19
+}).addTo(map);
+
+let marker;
 let lastPosition = null;
 let totalDistance = 0;
-let speeds = [];
-let watchId = null;
 
-const NOISE_THRESHOLD = 0.008; // ~40 meters (filters GPS drift)
+let track = [];
+let isTracking = false;
+let fastestSpeed = 0;
+let loadedLine = null;
 
-function initMap() {
-  map = L.map('map', { zoomControl: false }).setView([51.7520, -1.2577], 15);
+let wakeLock = null;
 
-  L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    { maxZoom: 19 }
-  ).addTo(map);
-}
+// smoothing
+let speedBuffer = [];
+const NOISE_THRESHOLD = 0.008;
 
-function startTracking() {
-  document.getElementById("startBtn").style.display = "none";
+// MENU toggle
+document.getElementById("menuBtn").onclick = () => {
+  const m = document.getElementById("menu");
+  m.style.display = (m.style.display === "block") ? "none" : "block";
+};
 
-  watchId = navigator.geolocation.watchPosition(
-    updatePosition,
-    error => console.log(error),
-    {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 5000
-    }
-  );
-}
+// GPS
+navigator.geolocation.watchPosition(updatePos, err => console.log(err), {
+  enableHighAccuracy:true,
+  maximumAge:0
+});
 
-function updatePosition(pos) {
+function updatePos(pos) {
   const { latitude, longitude, speed } = pos.coords;
 
   let mph = speed ? speed * 2.23694 : 0;
 
-  // Smooth speed
-  speeds.push(mph);
-  if (speeds.length > 20) speeds.shift();
-  let avgSpeed = speeds.reduce((a,b)=>a+b,0)/speeds.length;
+  // smooth speed
+  speedBuffer.push(mph);
+  if (speedBuffer.length > 5) speedBuffer.shift();
+  let smoothSpeed = speedBuffer.reduce((a,b)=>a+b,0)/speedBuffer.length;
 
-  document.getElementById("speed").textContent = Math.round(mph);
-  document.getElementById("avg-speed").textContent = Math.round(avgSpeed);
+  if (smoothSpeed > fastestSpeed) fastestSpeed = smoothSpeed;
 
-  // Distance calculation with noise filter
+  document.getElementById("speed").textContent = Math.round(smoothSpeed);
+  document.getElementById("speedBig").textContent = Math.round(smoothSpeed);
+  document.getElementById("fs").textContent = Math.round(fastestSpeed);
+
+  // distance
   if (lastPosition) {
     const dist = getDistance(
-      lastPosition.lat,
-      lastPosition.lng,
-      latitude,
-      longitude
+      lastPosition.lat, lastPosition.lng,
+      latitude, longitude
     );
 
-    // 🚫 FILTER: ignore GPS jitter when stationary
-    if (dist > NOISE_THRESHOLD && mph > 1) {
+    if (dist > NOISE_THRESHOLD && smoothSpeed > 1) {
       totalDistance += dist;
     }
   }
@@ -205,7 +177,8 @@ function updatePosition(pos) {
 
   lastPosition = { lat: latitude, lng: longitude };
 
-  // Marker
+  if (isTracking) track.push([latitude, longitude]);
+
   if (!marker) {
     marker = L.marker([latitude, longitude]).addTo(map);
     map.setView([latitude, longitude], 17);
@@ -214,13 +187,13 @@ function updatePosition(pos) {
   }
 }
 
+// distance formula
 function getDistance(lat1, lon1, lat2, lon2) {
   const R = 3958.8;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const dLat = (lat2-lat1)*Math.PI/180;
+  const dLon = (lon2-lon1)*Math.PI/180;
 
-  const a =
-    Math.sin(dLat/2)**2 +
+  const a = Math.sin(dLat/2)**2 +
     Math.cos(lat1*Math.PI/180) *
     Math.cos(lat2*Math.PI/180) *
     Math.sin(dLon/2)**2;
@@ -228,22 +201,53 @@ function getDistance(lat1, lon1, lat2, lon2) {
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-function centerMap() {
-  if (lastPosition) {
-    map.setView([lastPosition.lat, lastPosition.lng], 17);
+// TRACK
+function startTrack() {
+  track = [];
+  totalDistance = 0;
+  fastestSpeed = 0;
+  isTracking = true;
+  keepScreenOn();
+}
+
+function stopTrack() {
+  isTracking = false;
+
+  if (wakeLock) {
+    wakeLock.release();
+    wakeLock = null;
   }
 }
 
-function updateClock() {
-  document.getElementById("time").textContent =
-    new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+function saveTrack() {
+  localStorage.setItem("track", JSON.stringify(track));
+  alert("Saved!");
 }
 
-document.getElementById("startBtn").addEventListener("click", startTracking);
+function loadTrack() {
+  const data = localStorage.getItem("track");
+  if (!data) return alert("No track");
 
-initMap();
-updateClock();
-setInterval(updateClock, 1000);
+  const coords = JSON.parse(data);
+
+  if (loadedLine) map.removeLayer(loadedLine);
+
+  loadedLine = L.polyline(coords, {
+    color:"lime",
+    weight:5
+  }).addTo(map);
+
+  map.fitBounds(loadedLine.getBounds());
+}
+
+// WAKE LOCK
+async function keepScreenOn() {
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+  } catch(e) {
+    console.log("WakeLock failed");
+  }
+}
 </script>
 
 </body>
