@@ -12,77 +12,73 @@
 * { margin:0; padding:0; box-sizing:border-box; }
 
 body {
-  font-family: Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto;
   background:#000;
   color:#fff;
   overflow:hidden;
 }
 
+/* MAP */
 #map {
   position:absolute;
   width:100%;
   height:100%;
 }
 
-/* TOP STATS */
-.top {
+/* MAIN UI */
+.ui {
   position:absolute;
-  top:10px;
+  top:20px;
   left:50%;
   transform:translateX(-50%);
-  background:rgba(0,0,0,0.7);
-  padding:10px 20px;
-  border-radius:20px;
-  display:flex;
-  gap:20px;
+  text-align:center;
   z-index:1000;
-  font-size:14px;
-}
-
-/* MENU BUTTON */
-#menuBtn {
-  position:absolute;
-  bottom:20px;
-  left:20px;
-  z-index:2000;
-  width:55px;
-  height:55px;
-  border-radius:12px;
-  border:none;
-  background:rgba(0,0,0,0.8);
-  color:white;
-  font-size:24px;
-}
-
-/* MENU PANEL */
-#menu {
-  position:absolute;
-  bottom:90px;
-  left:20px;
-  background:#111;
-  padding:15px;
-  border-radius:15px;
-  display:none;
-  z-index:2000;
-}
-
-#menu button {
-  display:block;
-  margin:5px 0;
-  padding:10px;
-  width:120px;
-  border:none;
-  border-radius:8px;
 }
 
 /* BIG SPEED */
-.speed-big {
-  position:absolute;
-  bottom:20px;
-  right:20px;
-  font-size:60px;
+.speed {
+  font-size:80px;
+  font-weight:700;
   color:#00f0ff;
-  z-index:1000;
+  line-height:1;
+}
+
+.unit {
+  font-size:16px;
+  color:#aaa;
+  margin-top:-5px;
+}
+
+/* SMALL STATS */
+.stats {
+  margin-top:10px;
+  display:flex;
+  justify-content:center;
+  gap:30px;
+  font-size:16px;
+}
+
+.stat {
+  text-align:center;
+}
+
+.label {
+  font-size:12px;
+  color:#888;
+}
+
+/* START OVERLAY */
+#startOverlay {
+  position:absolute;
+  top:0; left:0;
+  width:100%;
+  height:100%;
+  background:#000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:2000;
+  font-size:22px;
 }
 </style>
 </head>
@@ -91,25 +87,25 @@ body {
 
 <div id="map"></div>
 
-<!-- TOP STATS -->
-<div class="top">
-  <div>MPH: <span id="speed">0</span></div>
-  <div>Miles: <span id="distance">0</span></div>
-  <div>FS: <span id="fs">0</span></div>
+<!-- UI -->
+<div class="ui">
+  <div class="speed" id="speed">0</div>
+  <div class="unit">MPH</div>
+
+  <div class="stats">
+    <div class="stat">
+      <div id="distance">0.0</div>
+      <div class="label">MILES</div>
+    </div>
+    <div class="stat">
+      <div id="fs">0</div>
+      <div class="label">FS</div>
+    </div>
+  </div>
 </div>
 
-<div class="speed-big" id="speedBig">0</div>
-
-<!-- MENU BUTTON -->
-<button id="menuBtn">[</button>
-
-<!-- MENU -->
-<div id="menu">
-  <button onclick="startTrack()">Start</button>
-  <button onclick="stopTrack()">Stop</button>
-  <button onclick="saveTrack()">Save</button>
-  <button onclick="loadTrack()">Load</button>
-</div>
+<!-- TAP TO START -->
+<div id="startOverlay">Tap to Start</div>
 
 <script>
 let map = L.map('map').setView([51.5, -0.1], 15);
@@ -121,30 +117,29 @@ L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/
 let marker;
 let lastPosition = null;
 let totalDistance = 0;
-
-let track = [];
-let isTracking = false;
 let fastestSpeed = 0;
-let loadedLine = null;
+let speedBuffer = [];
 
 let wakeLock = null;
-
-// smoothing
-let speedBuffer = [];
 const NOISE_THRESHOLD = 0.008;
 
-// MENU toggle
-document.getElementById("menuBtn").onclick = () => {
-  const m = document.getElementById("menu");
-  m.style.display = (m.style.display === "block") ? "none" : "block";
+// START APP
+document.getElementById("startOverlay").onclick = () => {
+  document.getElementById("startOverlay").style.display = "none";
+  startTracking();
 };
 
-// GPS
-navigator.geolocation.watchPosition(updatePos, err => console.log(err), {
-  enableHighAccuracy:true,
-  maximumAge:0
-});
+// GPS START
+function startTracking() {
+  keepScreenOn();
 
+  navigator.geolocation.watchPosition(updatePos, err => console.log(err), {
+    enableHighAccuracy:true,
+    maximumAge:0
+  });
+}
+
+// UPDATE POSITION
 function updatePos(pos) {
   const { latitude, longitude, speed } = pos.coords;
 
@@ -158,7 +153,6 @@ function updatePos(pos) {
   if (smoothSpeed > fastestSpeed) fastestSpeed = smoothSpeed;
 
   document.getElementById("speed").textContent = Math.round(smoothSpeed);
-  document.getElementById("speedBig").textContent = Math.round(smoothSpeed);
   document.getElementById("fs").textContent = Math.round(fastestSpeed);
 
   // distance
@@ -177,8 +171,7 @@ function updatePos(pos) {
 
   lastPosition = { lat: latitude, lng: longitude };
 
-  if (isTracking) track.push([latitude, longitude]);
-
+  // marker
   if (!marker) {
     marker = L.marker([latitude, longitude]).addTo(map);
     map.setView([latitude, longitude], 17);
@@ -187,7 +180,7 @@ function updatePos(pos) {
   }
 }
 
-// distance formula
+// DISTANCE
 function getDistance(lat1, lon1, lat2, lon2) {
   const R = 3958.8;
   const dLat = (lat2-lat1)*Math.PI/180;
@@ -201,52 +194,11 @@ function getDistance(lat1, lon1, lat2, lon2) {
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-// TRACK
-function startTrack() {
-  track = [];
-  totalDistance = 0;
-  fastestSpeed = 0;
-  isTracking = true;
-  keepScreenOn();
-}
-
-function stopTrack() {
-  isTracking = false;
-
-  if (wakeLock) {
-    wakeLock.release();
-    wakeLock = null;
-  }
-}
-
-function saveTrack() {
-  localStorage.setItem("track", JSON.stringify(track));
-  alert("Saved!");
-}
-
-function loadTrack() {
-  const data = localStorage.getItem("track");
-  if (!data) return alert("No track");
-
-  const coords = JSON.parse(data);
-
-  if (loadedLine) map.removeLayer(loadedLine);
-
-  loadedLine = L.polyline(coords, {
-    color:"lime",
-    weight:5
-  }).addTo(map);
-
-  map.fitBounds(loadedLine.getBounds());
-}
-
 // WAKE LOCK
 async function keepScreenOn() {
   try {
     wakeLock = await navigator.wakeLock.request('screen');
-  } catch(e) {
-    console.log("WakeLock failed");
-  }
+  } catch(e) {}
 }
 </script>
 
